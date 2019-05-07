@@ -233,7 +233,7 @@ class QGConnector(api_actions.QGActions):
         return data
 
     def request(self, api_call, data=None, api_version=None, http_method=None, concurrent_scans_retries=0,
-                concurrent_scans_retry_delay=0):
+                concurrent_scans_retry_delay=0, stream=False):
         """ Return QualysGuard API response.
 
         """
@@ -293,12 +293,14 @@ class QGConnector(api_actions.QGActions):
             if http_method == 'get':
                 # GET
                 logger.debug('GET request.')
-                request = self.session.get(url, params=data, auth=self.auth, headers=headers, proxies=self.proxies)
+                request = self.session.get(url, params=data, auth=self.auth, headers=headers, proxies=self.proxies,
+                                           stream=stream)
             else:
                 # POST
                 logger.debug('POST request.')
                 # Make POST request.
-                request = self.session.post(url, data=data, auth=self.auth, headers=headers, proxies=self.proxies)
+                request = self.session.post(url, data=data, auth=self.auth, headers=headers, proxies=self.proxies,
+                                            stream=stream)
             logger.debug('response headers =\n%s' % (str(request.headers)))
             #
             # Remember how many times left user can make against api_call.
@@ -324,8 +326,16 @@ class QGConnector(api_actions.QGActions):
                 logger.debug(e)
                 pass
             # Response received.
-            response = request.text
-            logger.debug('response text =\n%s' % (response))
+            if not stream:
+                response = request.text
+                logger.debug('response text =\n%s' % (response))
+            else:
+                with open('/tmp/scanresults', 'wb') as f:
+                    print('File is open, getting chunks...')
+                    for chunk in request.iter_content(chunk_size=1024):
+                        if chunk:
+                            f.write(chunk)
+                return '/tmp/scanresults'
             # Keep track of how many retries.
             retries += 1
             # Check for concurrent scans limit.
